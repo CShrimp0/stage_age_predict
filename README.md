@@ -113,17 +113,21 @@ sole ranking target.
   - Fits multiple interpretable `bio_age` reference axes under subject-level CV.
   - The directory name is kept for backward compatibility with earlier local
     runs; current outputs use `bio_age` terminology.
+- `state_age_feature_benchmark/build_single_ml_report.py`
+  - 从一个 benchmark run 生成一份清晰的“单个 ML 实验 vs 多条 bio_age 轴”报告。
+  - 这是当前最推荐直接阅读的结果入口。
 - `state_age_feature_benchmark/compare_ml_runs_to_bio_age.py`
   - Compares many ML prediction runs against fitted `bio_age` axes.
+  - 这是后续进阶分析入口，不是当前首读路径。
 - `state_age_feature_benchmark/compare_ml_runs_to_state_age.py`
   - Backward-compatible wrapper around `compare_ml_runs_to_bio_age.py`.
 - `results/`
   - Summary-level example outputs. Raw images, full feature tables, and
     per-sample private prediction files are not included.
 
-## 运行 Bio Age 参考轴拟合
+## 推荐工作流：先看单个 ML 实验
 
-Provide a prediction file and feature table explicitly:
+第一步，拟合多条 `bio_age` 参考轴，并自动生成一份清晰单报告：
 
 ```bash
 python state_age_feature_benchmark/run_state_age_feature_benchmark.py \
@@ -158,7 +162,30 @@ results/bio_age_feature_benchmark/<run_name>/
   figures/
 ```
 
-## 比较 ML 与 Bio Age 参考轴
+同时会自动产出一份更适合阅读的单实验报告：
+
+```bash
+results/reports/single_ml/<ml_run_name>/
+  summary.md
+  tables/
+    main_axes_overview.csv
+    upper_bound_axes_overview.csv
+    subject_error_matrix_main_axes.csv
+    worst_subjects_main_axes.csv
+  figures/
+```
+
+如果你已经有一个 benchmark run，也可以单独重新渲染报告：
+
+```bash
+python state_age_feature_benchmark/build_single_ml_report.py \
+  --bio-age-run results/bio_age_feature_benchmark/<run_name> \
+  --output-root results/reports/single_ml
+```
+
+## 进阶：多个 ML runs 对比
+
+等单实验报告看清楚之后，再做多 run 对比：
 
 ```bash
 python state_age_feature_benchmark/compare_ml_runs_to_bio_age.py \
@@ -166,19 +193,6 @@ python state_age_feature_benchmark/compare_ml_runs_to_bio_age.py \
   --pred-root /home/szdx/LNX/usage_predict_feature_engineering/outputs \
   --output-dir results/ml_vs_bio_age/<comparison_name>
 ```
-
-Primary outputs:
-
-```text
-results/ml_vs_bio_age/<comparison_name>/
-  ml_vs_bio_age_leaderboard.csv
-  ml_vs_bio_age_subject_diagnostics.csv
-  summary.md
-  figures/
-```
-
-The subject diagnostics file supports worst-subject analysis and comparison of
-the same subject across multiple `bio_age` axes.
 
 ## EI-only Bio Age 基线
 

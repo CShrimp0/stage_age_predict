@@ -40,6 +40,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from dataio.load_images import load_grayscale_image, load_mask
 from preprocessing.split import RegressionStratifiedGroupKFold
+from build_single_ml_report import build_single_ml_report
 
 try:
     from skimage.feature import local_binary_pattern
@@ -872,6 +873,11 @@ def main() -> None:
         default="bio_age_ei,bio_age_texture,bio_age_ei_texture,bio_age_morphology,bio_age_texture_metadata,bio_age_full_image_upper_bound",
         help="Comma-separated feature_set names for ElasticNet robustness runs.",
     )
+    parser.add_argument(
+        "--single-report-root",
+        default="results/reports/single_ml",
+        help="Directory root for the clear single-ML report rendered after benchmark.",
+    )
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -1180,9 +1186,15 @@ def main() -> None:
         pred_true_sample_mae=pred_true_sample_mae,
         pred_true_subject_mae=pred_true_subject_mae,
     )
+    report_dir = build_single_ml_report(
+        bio_age_run=run_dir,
+        output_root=(PROJECT_ROOT / args.single_report_root).resolve(),
+        model="ridge",
+    )
 
     print("=== bio_age 参考轴拟合完成 ===")
     print(f"run_dir: {run_dir}")
+    print(f"single_report_dir: {report_dir}")
     print("按 pred_age 与 bio_age 的 subject_gap_mae 排序的 Top-5 Ridge 结果：")
     show_cols = [
         "feature_set",
