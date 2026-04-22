@@ -37,7 +37,7 @@
 - `figures/04_worst_subjects_main_axes.png`：最难对齐的 subjects。
 - `figures/05_pred_age_vs_true_age.png` 与 `06-08`：散点关系图。
 - `figures/09_true_bio_pred_curve_best_main_axis.png`：最佳主参考轴下 true_age、pred_age、bio_age 三条曲线图。
-- `figures/10_true_bio_pred_curve_by_20y_segments_best_main_axis.png`：将 09 图按 20 岁分段后的曲线图。
+- `figures/10_true_bio_pred_curve_by_10y_segments_best_main_axis.png`：将 09 图按 10 岁分段后的曲线图。
 
 ## 建议阅读顺序
 1. 先看 `summary.md` 的主参考轴总览。

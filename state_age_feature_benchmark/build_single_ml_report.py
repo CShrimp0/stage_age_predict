@@ -35,8 +35,8 @@ AXIS_DESCRIPTIONS = {
     "bio_age_texture_metadata": "实用上限参考，不作为主科学定义。",
     "bio_age_full_image_upper_bound": "实用上限参考，不作为主科学定义。",
 }
-AGE_BINS = [18.0, 40.0, 60.0, 80.0, float("inf")]
-AGE_BAND_LABELS = ["18-39", "40-59", "60-79", "80+"]
+AGE_BINS = [18.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, float("inf")]
+AGE_BAND_LABELS = ["18-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90+"]
 
 
 def infer_ml_run_name(pred_path: str) -> str:
@@ -104,9 +104,9 @@ def save_age_curve_plot(frame: pd.DataFrame, path: Path, title: str) -> None:
     plot_frame = frame.sort_values(["true_age", "subject_id"]).reset_index(drop=True).copy()
     x = np.arange(len(plot_frame))
     plt.figure(figsize=(12, 5.8))
-    plt.plot(x, plot_frame["true_age"], label="true_age", linewidth=2.0, color="#111827")
-    plt.plot(x, plot_frame["pred_age"], label="pred_age", linewidth=1.8, color="#2563eb")
-    plt.plot(x, plot_frame["bio_age"], label="bio_age", linewidth=1.8, color="#dc2626")
+    plt.plot(x, plot_frame["true_age"], label="true_age", linewidth=1.4, color="#111827")
+    plt.plot(x, plot_frame["pred_age"], label="pred_age", linewidth=1.1, color="#2563eb")
+    plt.plot(x, plot_frame["bio_age"], label="bio_age", linewidth=1.1, color="#dc2626")
     plt.xlabel("subjects（按 true_age 排序）")
     plt.ylabel("age")
     plt.title(title)
@@ -131,15 +131,18 @@ def save_age_segment_curve_plot(frame: pd.DataFrame, path: Path, title: str) -> 
     groups = [(label, g) for label, g in groups if not g.empty]
     if not groups:
         return
-    fig, axes = plt.subplots(2, 2, figsize=(13, 8), sharey=True)
+    n_panels = len(groups)
+    n_cols = 2
+    n_rows = int(np.ceil(n_panels / n_cols))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(13, max(8, 3.6 * n_rows)), sharey=True)
     axes = axes.flatten()
     for ax in axes[len(groups):]:
         ax.axis("off")
     for ax, (label, group) in zip(axes, groups):
         x = np.arange(len(group))
-        ax.plot(x, group["true_age"], label="true_age", linewidth=2.0, color="#111827")
-        ax.plot(x, group["pred_age"], label="pred_age", linewidth=1.8, color="#2563eb")
-        ax.plot(x, group["bio_age"], label="bio_age", linewidth=1.8, color="#dc2626")
+        ax.plot(x, group["true_age"], label="true_age", linewidth=1.3, color="#111827")
+        ax.plot(x, group["pred_age"], label="pred_age", linewidth=1.0, color="#2563eb")
+        ax.plot(x, group["bio_age"], label="bio_age", linewidth=1.0, color="#dc2626")
         ax.set_title(f"{label} 岁")
         ax.set_xlabel("subjects（段内按 true_age 排序）")
         ax.set_ylabel("age")
@@ -336,8 +339,8 @@ def build_single_ml_report(bio_age_run: Path, output_root: Path | None = None, m
     )
     save_age_segment_curve_plot(
         best_main_subject,
-        figures_dir / "10_true_bio_pred_curve_by_20y_segments_best_main_axis.png",
-        f"按 20 岁分段的 true_age / pred_age / bio_age 曲线图（{best_main_axis}）",
+        figures_dir / "10_true_bio_pred_curve_by_10y_segments_best_main_axis.png",
+        f"按 10 岁分段的 true_age / pred_age / bio_age 曲线图（{best_main_axis}）",
     )
 
     metadata = {
@@ -401,7 +404,7 @@ def build_single_ml_report(bio_age_run: Path, output_root: Path | None = None, m
     lines.append("- `figures/04_worst_subjects_main_axes.png`：最难对齐的 subjects。")
     lines.append("- `figures/05_pred_age_vs_true_age.png` 与 `06-08`：散点关系图。")
     lines.append("- `figures/09_true_bio_pred_curve_best_main_axis.png`：最佳主参考轴下 true_age、pred_age、bio_age 三条曲线图。")
-    lines.append("- `figures/10_true_bio_pred_curve_by_20y_segments_best_main_axis.png`：将 09 图按 20 岁分段后的曲线图。")
+    lines.append("- `figures/10_true_bio_pred_curve_by_10y_segments_best_main_axis.png`：将 09 图按 10 岁分段后的曲线图。")
     lines.append("")
     lines.append("## 建议阅读顺序")
     lines.append("1. 先看 `summary.md` 的主参考轴总览。")
