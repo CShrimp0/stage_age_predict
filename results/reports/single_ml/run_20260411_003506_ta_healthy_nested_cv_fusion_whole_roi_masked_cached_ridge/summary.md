@@ -29,6 +29,7 @@
 ## 逐 subject 诊断
 - `tables/subject_error_matrix_main_axes.csv`：每个 subject 在三条主轴下的误差并列表。
 - `tables/worst_subjects_main_axes.csv`：主轴平均误差最大的 subjects。
+- `tables/age_band_overview_best_main_axis.csv`：最佳主参考轴下按年龄段分层的结果。
 
 ## 图表
 - `figures/01_main_axes_subject_gap_mae.png`：三条主轴的 gap MAE。
@@ -37,6 +38,7 @@
 - `figures/04_worst_subjects_main_axes.png`：最难对齐的 subjects。
 - `figures/05_pred_age_vs_true_age.png` 与 `06-08`：散点关系图。
 - `figures/09_true_bio_pred_curve_best_main_axis.png`：最佳主参考轴下 true_age、pred_age、bio_age 三条曲线图。
+- `figures/10_age_band_summary_best_main_axis.png`：最佳主参考轴下按年龄段分层的结果图。
 
 ## 建议阅读顺序
 1. 先看 `summary.md` 的主参考轴总览。
