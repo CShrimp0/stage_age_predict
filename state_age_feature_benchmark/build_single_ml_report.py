@@ -116,6 +116,25 @@ def save_age_curve_plot(frame: pd.DataFrame, path: Path, title: str) -> None:
     plt.close()
 
 
+def save_age_band_curve_plot(frame: pd.DataFrame, path: Path, title: str) -> None:
+    if frame.empty:
+        return
+    plot_frame = frame.copy()
+    x = np.arange(len(plot_frame))
+    plt.figure(figsize=(10.5, 5.6))
+    plt.plot(x, plot_frame["true_age"], marker="o", linewidth=2.0, color="#111827", label="true_age")
+    plt.plot(x, plot_frame["pred_age"], marker="o", linewidth=1.8, color="#2563eb", label="pred_age")
+    plt.plot(x, plot_frame["bio_age"], marker="o", linewidth=1.8, color="#dc2626", label="bio_age")
+    plt.xticks(x, plot_frame["年龄段"])
+    plt.xlabel("年龄段")
+    plt.ylabel("均值")
+    plt.title(title)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(path, dpi=180)
+    plt.close()
+
+
 def save_age_band_summary_plot(frame: pd.DataFrame, path: Path, title: str) -> None:
     if frame.empty:
         return
@@ -339,6 +358,9 @@ def build_single_ml_report(bio_age_run: Path, output_root: Path | None = None, m
         best_main_subject.groupby("年龄段", observed=False)
         .agg(
             subject数=("subject_id", "size"),
+            true_age=("true_age", "mean"),
+            pred_age=("pred_age", "mean"),
+            bio_age=("bio_age", "mean"),
             subject_pred_vs_true_mae=("pred_vs_true_abs", "mean"),
             subject_pred_vs_bio_mae=("pred_vs_bio_abs", "mean"),
             subject更接近bio比例=("closer_to_bio", "mean"),
@@ -356,10 +378,15 @@ def build_single_ml_report(bio_age_run: Path, output_root: Path | None = None, m
         figures_dir / "09_true_bio_pred_curve_best_main_axis.png",
         f"true_age / pred_age / bio_age 曲线图（{best_main_axis}）",
     )
+    save_age_band_curve_plot(
+        age_band_table,
+        figures_dir / "10_age_band_curve_best_main_axis.png",
+        f"分年龄段曲线图（{best_main_axis}）",
+    )
     save_age_band_summary_plot(
         age_band_table,
-        figures_dir / "10_age_band_summary_best_main_axis.png",
-        f"分年龄段结果（{best_main_axis}）",
+        figures_dir / "11_age_band_summary_best_main_axis.png",
+        f"分年龄段结果摘要（{best_main_axis}）",
     )
 
     metadata = {
@@ -424,6 +451,8 @@ def build_single_ml_report(bio_age_run: Path, output_root: Path | None = None, m
     lines.append("- `figures/04_worst_subjects_main_axes.png`：最难对齐的 subjects。")
     lines.append("- `figures/05_pred_age_vs_true_age.png` 与 `06-08`：散点关系图。")
     lines.append("- `figures/09_true_bio_pred_curve_best_main_axis.png`：最佳主参考轴下 true_age、pred_age、bio_age 三条曲线图。")
+    lines.append("- `figures/10_age_band_curve_best_main_axis.png`：按年龄段聚合后的 true_age、pred_age、bio_age 曲线图。")
+    lines.append("- `figures/11_age_band_summary_best_main_axis.png`：按年龄段聚合后的 MAE 与 closer-to-bio 摘要图。")
     lines.append("- `figures/10_age_band_summary_best_main_axis.png`：最佳主参考轴下按年龄段分层的结果图。")
     lines.append("")
     lines.append("## 建议阅读顺序")

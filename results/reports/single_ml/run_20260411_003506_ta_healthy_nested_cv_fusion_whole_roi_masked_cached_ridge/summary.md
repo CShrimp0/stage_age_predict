@@ -38,6 +38,8 @@
 - `figures/04_worst_subjects_main_axes.png`：最难对齐的 subjects。
 - `figures/05_pred_age_vs_true_age.png` 与 `06-08`：散点关系图。
 - `figures/09_true_bio_pred_curve_best_main_axis.png`：最佳主参考轴下 true_age、pred_age、bio_age 三条曲线图。
+- `figures/10_age_band_curve_best_main_axis.png`：按年龄段聚合后的 true_age、pred_age、bio_age 曲线图。
+- `figures/11_age_band_summary_best_main_axis.png`：按年龄段聚合后的 MAE 与 closer-to-bio 摘要图。
 - `figures/10_age_band_summary_best_main_axis.png`：最佳主参考轴下按年龄段分层的结果图。
 
 ## 建议阅读顺序
