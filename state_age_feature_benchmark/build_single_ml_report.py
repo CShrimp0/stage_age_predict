@@ -134,7 +134,7 @@ def save_age_segment_curve_plot(frame: pd.DataFrame, path: Path, title: str) -> 
     n_panels = len(groups)
     n_cols = 2
     n_rows = int(np.ceil(n_panels / n_cols))
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(13, max(8, 3.6 * n_rows)), sharey=True)
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(13, max(8, 3.6 * n_rows)), sharey=False)
     axes = axes.flatten()
     for ax in axes[len(groups):]:
         ax.axis("off")
