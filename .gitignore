@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+.DS_Store
+*.log
+
+# Raw/private data and heavy outputs.
+data/
+outputs/
+*.xlsx
+*.xls
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.tif
+*.tiff
+*.dcm
+*.npy
+*.npz
+
+# Keep curated summary-level results.
+!results/
+!results/**
