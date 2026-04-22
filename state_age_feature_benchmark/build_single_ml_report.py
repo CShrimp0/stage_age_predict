@@ -96,6 +96,24 @@ def save_scatter(x: np.ndarray, y: np.ndarray, path: Path, title: str, xlabel: s
     plt.close()
 
 
+def save_age_curve_plot(frame: pd.DataFrame, path: Path, title: str) -> None:
+    if frame.empty:
+        return
+    plot_frame = frame.sort_values(["true_age", "subject_id"]).reset_index(drop=True).copy()
+    x = np.arange(len(plot_frame))
+    plt.figure(figsize=(12, 5.8))
+    plt.plot(x, plot_frame["true_age"], label="true_age", linewidth=2.0, color="#111827")
+    plt.plot(x, plot_frame["pred_age"], label="pred_age", linewidth=1.8, color="#2563eb")
+    plt.plot(x, plot_frame["bio_age"], label="bio_age", linewidth=1.8, color="#dc2626")
+    plt.xlabel("subjects（按 true_age 排序）")
+    plt.ylabel("age")
+    plt.title(title)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(path, dpi=180)
+    plt.close()
+
+
 def save_worst_subjects_plot(worst_df: pd.DataFrame, path: Path) -> None:
     axes = [col for col in ["bio_age_ei误差", "bio_age_texture误差", "bio_age_ei_texture误差"] if col in worst_df.columns]
     if worst_df.empty or not axes:
@@ -272,6 +290,14 @@ def build_single_ml_report(bio_age_run: Path, output_root: Path | None = None, m
             "pred_age",
         )
 
+    best_main_axis = str(best_gap["feature_set"])
+    best_main_subject = pd.read_csv(bio_age_run / "feature_sets" / best_main_axis / "subject_results.csv")
+    save_age_curve_plot(
+        best_main_subject,
+        figures_dir / "09_true_bio_pred_curve_best_main_axis.png",
+        f"true_age / pred_age / bio_age 曲线图（{best_main_axis}）",
+    )
+
     metadata = {
         "report_generated_at": datetime.now().isoformat(timespec="seconds"),
         "bio_age_run": str(bio_age_run),
@@ -332,6 +358,7 @@ def build_single_ml_report(bio_age_run: Path, output_root: Path | None = None, m
     lines.append("- `figures/03_main_axes_subject_within_rates.png`：2/5/8 年内覆盖率。")
     lines.append("- `figures/04_worst_subjects_main_axes.png`：最难对齐的 subjects。")
     lines.append("- `figures/05_pred_age_vs_true_age.png` 与 `06-08`：散点关系图。")
+    lines.append("- `figures/09_true_bio_pred_curve_best_main_axis.png`：最佳主参考轴下 true_age、pred_age、bio_age 三条曲线图。")
     lines.append("")
     lines.append("## 建议阅读顺序")
     lines.append("1. 先看 `summary.md` 的主参考轴总览。")

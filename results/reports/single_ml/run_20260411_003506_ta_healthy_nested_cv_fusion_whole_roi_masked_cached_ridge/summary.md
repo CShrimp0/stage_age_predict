@@ -3,7 +3,7 @@
 ## 基本信息
 - ML 实验名: `run_20260411_003506_ta_healthy_nested_cv_fusion_whole_roi_masked_cached_ridge`
 - 原始 pred 文件: `/home/szdx/LNX/usage_predict_feature_engineering/outputs/run_20260411_003506_ta_healthy_nested_cv_fusion_whole_roi_masked_cached_ridge/predictions_readable.csv`
-- bio_age 拟合结果目录: `/home/szdx/LNX/statusage/results/bio_age_feature_benchmark/run_20260422_single_report_validation`
+- bio_age 拟合结果目录: `/home/szdx/LNX/statusage/results/bio_age_feature_benchmark/run_20260422_real_bio_age_benchmark_quick`
 - 报告模型: `ridge`
 
 ## 先看结论
@@ -36,6 +36,7 @@
 - `figures/03_main_axes_subject_within_rates.png`：2/5/8 年内覆盖率。
 - `figures/04_worst_subjects_main_axes.png`：最难对齐的 subjects。
 - `figures/05_pred_age_vs_true_age.png` 与 `06-08`：散点关系图。
+- `figures/09_true_bio_pred_curve_best_main_axis.png`：最佳主参考轴下 true_age、pred_age、bio_age 三条曲线图。
 
 ## 建议阅读顺序
 1. 先看 `summary.md` 的主参考轴总览。
