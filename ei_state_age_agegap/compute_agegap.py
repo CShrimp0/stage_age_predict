@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Define EI-based state age and compute prediction-vs-state-age gap MAE."""
+"""Define EI-based bio age and compute prediction-vs-bio-age gap MAE."""
 
 from __future__ import annotations
 
@@ -143,7 +143,7 @@ def merge_ei_source(
     return merged, merged_ei_column
 
 
-def build_state_age(
+def build_bio_age(
     ei_values: pd.Series,
     min_age: float,
     max_age: float,
@@ -185,13 +185,13 @@ def summarize_gap(frame: pd.DataFrame) -> dict[str, float | int]:
 
 def write_markdown_summary(metrics: dict, output_path: Path) -> None:
     lines = [
-        "# EI State Age Agegap Summary",
+        "# EI Bio Age Agegap Summary",
         "",
         f"- Input rows used: `{metrics['row_level']['n']}`",
         f"- Row-level agegap MAE: `{metrics['row_level']['agegap_mae']:.6g}`",
         f"- Row-level agegap bias: `{metrics['row_level']['agegap_bias']:.6g}`",
-        f"- Agegap definition: `pred_age - state_age`",
-        f"- State-age range: `{metrics['config']['min_age']}` to `{metrics['config']['max_age']}`",
+        f"- Agegap definition: `pred_age - bio_age`",
+        f"- Bio-age range: `{metrics['config']['min_age']}` to `{metrics['config']['max_age']}`",
         f"- EI mapping method: `{metrics['config']['method']}`",
         f"- Reverse EI direction: `{metrics['config']['reverse']}`",
     ]
@@ -211,8 +211,8 @@ def write_markdown_summary(metrics: dict, output_path: Path) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Map EI to a state-age scale for 18-100 year-old rows, compute "
-            "agegap = pred_age - state_age, and report MAE."
+            "Map EI to a bio-age scale for 18-100 year-old rows, compute "
+            "agegap = pred_age - bio_age, and report MAE."
         )
     )
     parser.add_argument("--input", required=True, help="Prediction table containing pred age and optionally EI.")
@@ -228,19 +228,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Join key for --ei-source. Use key for same name or left_col:right_col. Repeat for composite keys.",
     )
-    parser.add_argument("--output-dir", default="outputs/ei_state_age_agegap", help="Directory for result files.")
+    parser.add_argument("--output-dir", default="results/ei_bio_age_agegap", help="Directory for result files.")
     parser.add_argument("--min-age", type=float, default=18.0, help="Minimum chronological age to include.")
     parser.add_argument("--max-age", type=float, default=100.0, help="Maximum chronological age to include.")
     parser.add_argument(
         "--method",
         choices=("linear", "rank"),
         default="linear",
-        help="How to scale EI to state_age. linear uses EI min/max; rank uses EI percentile rank.",
+        help="How to scale EI to bio_age. linear uses EI min/max; rank uses EI percentile rank.",
     )
     parser.add_argument(
         "--reverse",
         action="store_true",
-        help="Use when higher EI should indicate younger state age instead of older state age.",
+        help="Use when higher EI should indicate younger bio age instead of older bio age.",
     )
     parser.add_argument(
         "--subject-column",
@@ -292,14 +292,14 @@ def main() -> None:
     if working.empty:
         raise ValueError("No rows left after numeric cleaning and age filtering.")
 
-    working["state_age"] = build_state_age(
+    working["bio_age"] = build_bio_age(
         working[ei_column],
         args.min_age,
         args.max_age,
         method=args.method,
         reverse=args.reverse,
     )
-    working["agegap"] = working[pred_column] - working["state_age"]
+    working["agegap"] = working[pred_column] - working["bio_age"]
     working["agegap_abs"] = working["agegap"].abs()
 
     metrics: dict[str, object] = {
@@ -321,8 +321,8 @@ def main() -> None:
             "rows_after_age_filter": int(len(working)),
             "ei_min": float(working[ei_column].min()),
             "ei_max": float(working[ei_column].max()),
-            "state_age_min": float(working["state_age"].min()),
-            "state_age_max": float(working["state_age"].max()),
+            "bio_age_min": float(working["bio_age"].min()),
+            "bio_age_max": float(working["bio_age"].max()),
         },
         "row_level": summarize_gap(working),
     }
@@ -330,9 +330,9 @@ def main() -> None:
     working.to_csv(output_dir / "agegap_results.csv", index=False)
 
     if subject_column:
-        numeric_columns = [age_column, pred_column, ei_column, "state_age"]
+        numeric_columns = [age_column, pred_column, ei_column, "bio_age"]
         subject_frame = working.groupby(subject_column, as_index=False)[numeric_columns].mean()
-        subject_frame["agegap"] = subject_frame[pred_column] - subject_frame["state_age"]
+        subject_frame["agegap"] = subject_frame[pred_column] - subject_frame["bio_age"]
         subject_frame["agegap_abs"] = subject_frame["agegap"].abs()
         subject_frame.to_csv(output_dir / "agegap_subject_results.csv", index=False)
         metrics["subject_level"] = summarize_gap(subject_frame)

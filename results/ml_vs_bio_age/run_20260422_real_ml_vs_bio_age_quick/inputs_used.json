@@ -1,0 +1,7 @@
+{
+  "bio_age_run": "/home/szdx/LNX/statusage/results/bio_age_feature_benchmark/run_20260422_real_bio_age_benchmark_quick",
+  "pred_root": "/home/szdx/LNX/usage_predict_feature_engineering/outputs",
+  "n_prediction_files": 15,
+  "n_bio_age_files": 11,
+  "n_rows": 165
+}

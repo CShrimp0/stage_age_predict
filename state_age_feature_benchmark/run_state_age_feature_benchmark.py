@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Benchmark lightweight feature sets for state-age fitting under unified group CV."""
+"""Fit interpretable image-derived bio_age reference axes under group CV.
+
+In this repository, bio_age is an interpretable image-derived
+biological/status age proxy. It is used as a reference axis for understanding
+ML-predicted age, not as a competition for best chronological-age prediction.
+"""
 
 from __future__ import annotations
 
@@ -45,6 +50,17 @@ PRED_COLUMN_CANDIDATES = ["pred_age", "prediction", "predicted_age", "y_pred"]
 TRUE_AGE_CANDIDATES = ["true_age", "age", "y_true"]
 SUBJECT_CANDIDATES = ["subject_id", "ID", "id"]
 SAMPLE_CANDIDATES = ["sample_id", "image_id", "instance_id"]
+MAIN_REFERENCE_AXES = ["bio_age_ei", "bio_age_texture", "bio_age_ei_texture"]
+SUPPLEMENTAL_AXES = ["bio_age_morphology", "bio_age_texture_metadata", "bio_age_full_image_upper_bound"]
+
+REFERENCE_AXIS_DESCRIPTIONS = {
+    "bio_age_ei": "EI / first-order axis: overall echogenicity and coarse muscle-quality signal.",
+    "bio_age_texture": "Texture-only axis: tissue heterogeneity and local texture-pattern signal.",
+    "bio_age_ei_texture": "Pure-image combined axis: first-order echogenicity plus texture.",
+    "bio_age_morphology": "Supplemental morphology axis: ROI shape and spatial descriptors.",
+    "bio_age_texture_metadata": "Practical upper bound: texture plus simple metadata.",
+    "bio_age_full_image_upper_bound": "Practical upper bound: broad image, morphology, partition, and metadata features.",
+}
 
 
 @dataclass
@@ -58,12 +74,23 @@ class FeatureRunResult:
     subject_gap_mae: float
     sample_gap_rmse: float
     subject_gap_rmse: float
-    state_age_sample_mae: float
-    state_age_subject_mae: float
-    state_age_vs_true_corr: float
-    state_age_std: float
-    state_age_min: float
-    state_age_max: float
+    sample_gain: float
+    subject_gain: float
+    sample_closer_to_bio_rate: float
+    subject_closer_to_bio_rate: float
+    sample_within_2_rate: float
+    sample_within_5_rate: float
+    sample_within_8_rate: float
+    subject_within_2_rate: float
+    subject_within_5_rate: float
+    subject_within_8_rate: float
+    bio_age_sample_mae: float
+    bio_age_subject_mae: float
+    bio_age_vs_true_corr: float
+    bio_age_bias_slope: float
+    bio_age_std: float
+    bio_age_min: float
+    bio_age_max: float
     status: str
     note: str
 
@@ -446,32 +473,18 @@ def build_feature_sets(df: pd.DataFrame) -> tuple[dict[str, list[str]], list[str
 
     metadata_cols = [c for c in ["meta__sex_male", "height_cm", "weight_kg", "bmi"] if c in columns]
 
+    # Main reference axes. These are intentionally named by interpretation,
+    # not by rank, because the goal is to test how pred_age aligns with
+    # interpretable bio_age axes.
     feature_sets: dict[str, list[str]] = {
-        "A1_ei_only_baseline": [roi_mean] if roi_mean in columns else [],
-        "A2_roi_first_order": roi_first_order,
-        "A3_whole_first_order": whole_first_order,
-        "A4_roi_plus_whole_first_order": sorted(set(roi_first_order + whole_first_order)),
-        "A5_depthnorm_roi_first_order": depthnorm_cols,
-        "B1_glcm_only": glcm_cols,
-        "B2_lbp_only": lbp_cols,
-        "B3_glrlm_glszm_only": glrlm_glszm_cols,
-        "B4_texture_only": texture_cols,
-        "B5_first_order_plus_texture": sorted(set(roi_first_order + whole_first_order + texture_cols)),
-        "C1_morphology_basic": sorted(set(morphology_cols + morphology_extra_basic)),
-        "C2_morphology_depth_position": morphology_depth_cols,
-        "C3_morphology_only": sorted(set(morphology_cols + morphology_extra_basic + morphology_depth_cols)),
-        "C4_first_order_plus_morphology": sorted(set(roi_first_order + morphology_cols + morphology_extra_basic + morphology_depth_cols)),
-        "C5_first_order_texture_morphology": sorted(
-            set(roi_first_order + whole_first_order + texture_cols + morphology_cols + morphology_extra_basic + morphology_depth_cols)
-        ),
-        "D1_partition_first_order_depth": partition_depth_cols,
-        "D2_partition_first_order_width": partition_width_cols,
-        "D3_partition_first_order_plus_partition_texture": sorted(set(partition_depth_cols + partition_width_cols + partition_texture_cols)),
-        "D4_roi_plus_partition": sorted(set(roi_first_order + partition_depth_cols + partition_width_cols + partition_texture_cols)),
-        "E1_metadata_only": metadata_cols,
-        "E2_first_order_plus_metadata": sorted(set(roi_first_order + metadata_cols)),
-        "E3_texture_plus_metadata": sorted(set(texture_cols + metadata_cols)),
-        "E4_full_plus_metadata": sorted(
+        "bio_age_ei": roi_first_order or ([roi_mean] if roi_mean in columns else []),
+        "bio_age_texture": texture_cols,
+        "bio_age_ei_texture": sorted(set(roi_first_order + whole_first_order + texture_cols)),
+        # Supplemental axes and practical upper bounds.
+        "bio_age_morphology": sorted(set(morphology_cols + morphology_extra_basic + morphology_depth_cols)),
+        "bio_age_texture_metadata": sorted(set(texture_cols + metadata_cols)),
+        "bio_age_ei_metadata": sorted(set(roi_first_order + metadata_cols)),
+        "bio_age_full_image_upper_bound": sorted(
             set(
                 roi_first_order
                 + whole_first_order
@@ -485,6 +498,14 @@ def build_feature_sets(df: pd.DataFrame) -> tuple[dict[str, list[str]], list[str
                 + metadata_cols
             )
         ),
+        "supplement_glcm_only": glcm_cols,
+        "supplement_lbp_only": lbp_cols,
+        "supplement_glrlm_glszm_only": glrlm_glszm_cols,
+        "supplement_depthnorm_ei": depthnorm_cols,
+        "supplement_partition_depth": partition_depth_cols,
+        "supplement_partition_width": partition_width_cols,
+        "supplement_partition_texture": sorted(set(partition_depth_cols + partition_width_cols + partition_texture_cols)),
+        "supplement_ei_partition": sorted(set(roi_first_order + partition_depth_cols + partition_width_cols + partition_texture_cols)),
     }
     return feature_sets, notes
 
@@ -553,49 +574,78 @@ def run_cv_predict(
     return pred
 
 
-def evaluate_predictions(df: pd.DataFrame, state_age: np.ndarray) -> tuple[pd.DataFrame, dict[str, float]]:
+def evaluate_predictions(df: pd.DataFrame, bio_age: np.ndarray) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, float]]:
     out = df[["sample_id", "subject_id", "true_age", "pred_age", "fold"]].copy()
-    out["state_age"] = state_age
+    out["bio_age"] = bio_age
     out["gap_pred_true"] = out["pred_age"] - out["true_age"]
-    out["gap_pred_state"] = out["pred_age"] - out["state_age"]
+    out["gap_pred_bio"] = out["pred_age"] - out["bio_age"]
+    out["abs_pred_true"] = out["gap_pred_true"].abs()
+    out["abs_pred_bio"] = out["gap_pred_bio"].abs()
 
-    sample_gap_mae = float(mean_absolute_error(out["pred_age"], out["state_age"]))
-    sample_gap_rmse = rmse(out["pred_age"].to_numpy(), out["state_age"].to_numpy())
+    sample_gap_mae = float(mean_absolute_error(out["pred_age"], out["bio_age"]))
+    sample_gap_rmse = rmse(out["pred_age"].to_numpy(), out["bio_age"].to_numpy())
+    sample_ml_true_mae = float(mean_absolute_error(out["true_age"], out["pred_age"]))
+    sample_closer_to_bio_rate = float((out["abs_pred_bio"] < out["abs_pred_true"]).mean())
+    sample_within_2_rate = float((out["abs_pred_bio"] <= 2.0).mean())
+    sample_within_5_rate = float((out["abs_pred_bio"] <= 5.0).mean())
+    sample_within_8_rate = float((out["abs_pred_bio"] <= 8.0).mean())
 
     subject_out = (
-        out.groupby("subject_id", as_index=False)[["true_age", "pred_age", "state_age", "gap_pred_true", "gap_pred_state"]]
+        out.groupby("subject_id", as_index=False)[["true_age", "pred_age", "bio_age", "gap_pred_true", "gap_pred_bio"]]
         .mean()
     )
-    subject_gap_mae = float(mean_absolute_error(subject_out["pred_age"], subject_out["state_age"]))
-    subject_gap_rmse = rmse(subject_out["pred_age"].to_numpy(), subject_out["state_age"].to_numpy())
+    subject_out["abs_pred_true"] = (subject_out["pred_age"] - subject_out["true_age"]).abs()
+    subject_out["abs_pred_bio"] = (subject_out["pred_age"] - subject_out["bio_age"]).abs()
+    subject_gap_mae = float(mean_absolute_error(subject_out["pred_age"], subject_out["bio_age"]))
+    subject_gap_rmse = rmse(subject_out["pred_age"].to_numpy(), subject_out["bio_age"].to_numpy())
+    subject_ml_true_mae = float(mean_absolute_error(subject_out["true_age"], subject_out["pred_age"]))
+    subject_closer_to_bio_rate = float((subject_out["abs_pred_bio"] < subject_out["abs_pred_true"]).mean())
+    subject_within_2_rate = float((subject_out["abs_pred_bio"] <= 2.0).mean())
+    subject_within_5_rate = float((subject_out["abs_pred_bio"] <= 5.0).mean())
+    subject_within_8_rate = float((subject_out["abs_pred_bio"] <= 8.0).mean())
 
-    ml_sample_mae = float(mean_absolute_error(out["true_age"], out["pred_age"]))
-    ml_subject_mae = float(mean_absolute_error(subject_out["true_age"], subject_out["pred_age"]))
-    state_age_sample_mae = float(mean_absolute_error(out["true_age"], out["state_age"]))
-    state_age_subject_mae = float(mean_absolute_error(subject_out["true_age"], subject_out["state_age"]))
-    state_age_vs_true_corr = safe_corr(out["true_age"].to_numpy(), out["state_age"].to_numpy())
-    state_age_std = float(out["state_age"].std(ddof=1))
-    state_age_min = float(out["state_age"].min())
-    state_age_max = float(out["state_age"].max())
+    bio_age_sample_mae = float(mean_absolute_error(out["true_age"], out["bio_age"]))
+    bio_age_subject_mae = float(mean_absolute_error(subject_out["true_age"], subject_out["bio_age"]))
+    bio_age_vs_true_corr = safe_corr(out["true_age"].to_numpy(), out["bio_age"].to_numpy())
+    if len(out) > 1 and float(out["true_age"].std()) > 1e-12:
+        bio_age_bias_slope = float(np.polyfit(out["true_age"], out["bio_age"] - out["true_age"], deg=1)[0])
+    else:
+        bio_age_bias_slope = float("nan")
+    bio_age_std = float(out["bio_age"].std(ddof=1))
+    bio_age_min = float(out["bio_age"].min())
+    bio_age_max = float(out["bio_age"].max())
 
     metrics = {
-        "ml_sample_mae": ml_sample_mae,
-        "ml_subject_mae": ml_subject_mae,
+        "sample_ml_true_mae": sample_ml_true_mae,
+        "subject_ml_true_mae": subject_ml_true_mae,
+        "ml_sample_mae": sample_ml_true_mae,
+        "ml_subject_mae": subject_ml_true_mae,
         "sample_gap_mae": sample_gap_mae,
         "subject_gap_mae": subject_gap_mae,
         "sample_gap_rmse": sample_gap_rmse,
         "subject_gap_rmse": subject_gap_rmse,
-        "state_age_sample_mae": state_age_sample_mae,
-        "state_age_subject_mae": state_age_subject_mae,
-        "state_age_vs_true_mae": state_age_sample_mae,
-        "state_age_vs_true_corr": state_age_vs_true_corr,
-        "state_age_std": state_age_std,
-        "state_age_min": state_age_min,
-        "state_age_max": state_age_max,
+        "sample_gain": float(sample_ml_true_mae - sample_gap_mae),
+        "subject_gain": float(subject_ml_true_mae - subject_gap_mae),
+        "sample_closer_to_bio_rate": sample_closer_to_bio_rate,
+        "subject_closer_to_bio_rate": subject_closer_to_bio_rate,
+        "sample_within_2_rate": sample_within_2_rate,
+        "sample_within_5_rate": sample_within_5_rate,
+        "sample_within_8_rate": sample_within_8_rate,
+        "subject_within_2_rate": subject_within_2_rate,
+        "subject_within_5_rate": subject_within_5_rate,
+        "subject_within_8_rate": subject_within_8_rate,
+        "bio_age_sample_mae": bio_age_sample_mae,
+        "bio_age_subject_mae": bio_age_subject_mae,
+        "bio_age_vs_true_mae": bio_age_sample_mae,
+        "bio_age_vs_true_corr": bio_age_vs_true_corr,
+        "bio_age_bias_slope": bio_age_bias_slope,
+        "bio_age_std": bio_age_std,
+        "bio_age_min": bio_age_min,
+        "bio_age_max": bio_age_max,
         "n_samples": int(len(out)),
         "n_subjects": int(subject_out["subject_id"].nunique()),
     }
-    return out, metrics
+    return out, subject_out, metrics
 
 
 def save_scatter(x: np.ndarray, y: np.ndarray, path: Path, title: str, xlabel: str, ylabel: str) -> None:
@@ -624,11 +674,73 @@ def save_bar(values: pd.DataFrame, path: Path, title: str) -> None:
     plt.close()
 
 
+def save_metric_bar(frame: pd.DataFrame, value_col: str, path: Path, title: str, xlabel: str) -> None:
+    if frame.empty:
+        return
+    plot_frame = frame.copy()
+    plt.figure(figsize=(10, max(4.5, 0.45 * len(plot_frame))))
+    plt.barh(plot_frame["feature_set"], plot_frame[value_col], color="#3b82f6")
+    plt.gca().invert_yaxis()
+    plt.xlabel(xlabel)
+    plt.title(title)
+    plt.tight_layout()
+    plt.savefig(path, dpi=180)
+    plt.close()
+
+
+def save_within_rate_plot(frame: pd.DataFrame, path: Path) -> None:
+    if frame.empty:
+        return
+    cols = ["subject_within_2_rate", "subject_within_5_rate", "subject_within_8_rate"]
+    plot_frame = frame.copy()
+    x = np.arange(len(plot_frame))
+    width = 0.25
+    plt.figure(figsize=(10, 5.5))
+    for idx, col in enumerate(cols):
+        plt.bar(x + (idx - 1) * width, plot_frame[col], width=width, label=col)
+    plt.xticks(x, plot_frame["feature_set"], rotation=20, ha="right")
+    plt.ylabel("coverage rate")
+    plt.title("Subject within 2/5/8 years of bio_age")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(path, dpi=180)
+    plt.close()
+
+
+def save_worst_subjects_plot(subject_diagnostics: pd.DataFrame, output_dir: Path) -> None:
+    main = subject_diagnostics[subject_diagnostics["feature_set"].isin(MAIN_REFERENCE_AXES)].copy()
+    if main.empty:
+        return
+    pivot = main.pivot_table(
+        index="subject_id",
+        columns="feature_set",
+        values="subject_abs_pred_bio",
+        aggfunc="mean",
+    )
+    available = [axis for axis in MAIN_REFERENCE_AXES if axis in pivot.columns]
+    if not available:
+        return
+    pivot["mean_abs_pred_bio"] = pivot[available].mean(axis=1)
+    worst = pivot.sort_values("mean_abs_pred_bio", ascending=False).head(15)[available]
+    plt.figure(figsize=(10, max(5, 0.4 * len(worst))))
+    y = np.arange(len(worst))
+    width = 0.8 / len(available)
+    for idx, axis in enumerate(available):
+        plt.barh(y + idx * width, worst[axis], height=width, label=axis)
+    plt.yticks(y + width * (len(available) - 1) / 2, [str(idx) for idx in worst.index])
+    plt.gca().invert_yaxis()
+    plt.xlabel("|pred_age - bio_age|")
+    plt.title("Worst subjects across main bio_age axes")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(output_dir / "figures" / "worst_subjects_by_bio_axis.png", dpi=180)
+    plt.close()
+
+
 def write_summary(
     run_dir: Path,
     leaderboard: pd.DataFrame,
-    baseline_row: pd.Series,
-    best_row: pd.Series,
+    reference_rows: pd.DataFrame,
     skipped: list[str],
     feature_notes: list[str],
     extra_notes: list[str],
@@ -637,18 +749,17 @@ def write_summary(
     pred_true_subject_mae: float,
 ) -> None:
     ridge_board = leaderboard[leaderboard["model"] == "ridge"].sort_values("subject_gap_mae").reset_index(drop=True)
-    top5 = ridge_board.head(5)
-
-    degeneration_flags = []
-    if float(best_row["state_age_std"]) < 4.0:
-        degeneration_flags.append("state_age 标准差偏小")
-    if float(best_row["state_age_vs_true_corr"]) < 0.35:
-        degeneration_flags.append("state_age 与真实年龄相关性偏低")
-    if float(best_row["state_age_max"]) - float(best_row["state_age_min"]) < 20.0:
-        degeneration_flags.append("state_age 动态范围偏窄")
+    main_rows = (
+        ridge_board[ridge_board["feature_set"].isin(MAIN_REFERENCE_AXES)]
+        .set_index("feature_set")
+        .reindex(MAIN_REFERENCE_AXES)
+        .dropna(subset=["n_features"])
+        .reset_index()
+    )
+    supplemental_rows = ridge_board[ridge_board["feature_set"].isin(SUPPLEMENTAL_AXES)].copy()
 
     lines: list[str] = []
-    lines.append("# state_age 特征基准实验总结")
+    lines.append("# bio_age reference-axis benchmark summary")
     lines.append("")
     lines.append("## 输入")
     lines.append(f"- pred_age 输入: {input_paths['pred']}")
@@ -656,44 +767,41 @@ def write_summary(
     lines.append(f"- 图像根目录: {input_paths['images']}")
     lines.append(f"- mask 根目录: {input_paths['masks']}")
     lines.append("")
-    lines.append("## 主结论")
-    lines.append(
-        f"- Ridge 主榜第一: {best_row['feature_set']} | pred_age vs state_age subject_gap_mae={best_row['subject_gap_mae']:.4f}, gain={best_row['gain']:.4f}"
-    )
-    lines.append(
-        f"- 机器学习原始 MAE: sample={pred_true_sample_mae:.4f}, subject={pred_true_subject_mae:.4f}"
-    )
-    lines.append(
-        f"- 最优方案 pred_age vs state_age gap MAE: sample={best_row['sample_gap_mae']:.4f}, subject={best_row['subject_gap_mae']:.4f}"
-    )
-    lines.append(
-        f"- gap MAE 相比机器学习原始 MAE 的缩小量: sample={best_row['gain_sample']:.4f}, subject={best_row['gain']:.4f}"
-    )
-    lines.append(
-        f"- 最优 state_age 自身 vs true_age MAE 仅作 sanity check: sample={best_row['state_age_sample_mae']:.4f}, subject={best_row['state_age_subject_mae']:.4f}"
-    )
+    lines.append("## 目的")
+    lines.append("- 本实验不以找到单一最低 MAE 年龄预测器为目标。")
+    lines.append("- `bio_age` 是 interpretable image-derived biological/status age proxy，用于建立多条可解释参考轴。")
+    lines.append("- 主问题是 `pred_age` 更接近哪条 `bio_age` 轴，而不是哪组特征最会预测 `true_age`。")
     lines.append("")
-    lines.append("## Top 5 (Ridge, 按 pred_age vs state_age 的 subject_gap_mae 升序)")
+    lines.append("## 主参考轴")
+    for axis in MAIN_REFERENCE_AXES:
+        lines.append(f"- `{axis}`: {REFERENCE_AXIS_DESCRIPTIONS[axis]}")
     lines.append("")
-    lines.append("| rank | feature_set | n_features | ml_subject_mae | subject_gap_mae | gain | sample_gap_mae | state_age_subject_mae | state_age_vs_true_corr |")
-    lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
-    for idx, (_, row) in enumerate(top5.iterrows(), start=1):
+    lines.append("## Main reference axes (Ridge)")
+    lines.append("")
+    lines.append("| bio_age_axis | n_features | sample_gap_mae | subject_gap_mae | sample_gain | subject_gain | sample_closer_to_bio_rate | subject_closer_to_bio_rate | bio_age_vs_true_mae | bio_age_vs_true_corr | bio_age_std |")
+    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+    for _, row in main_rows.iterrows():
         lines.append(
-            f"| {idx} | {row['feature_set']} | {int(row['n_features'])} | {row['ml_subject_mae']:.4f} | {row['subject_gap_mae']:.4f} | {row['gain']:.4f} | {row['sample_gap_mae']:.4f} | {row['state_age_subject_mae']:.4f} | {row['state_age_vs_true_corr']:.4f} |"
+            f"| {row['feature_set']} | {int(row['n_features'])} | {row['sample_gap_mae']:.4f} | {row['subject_gap_mae']:.4f} | "
+            f"{row['sample_gain']:.4f} | {row['subject_gain']:.4f} | {row['sample_closer_to_bio_rate']:.4f} | "
+            f"{row['subject_closer_to_bio_rate']:.4f} | {row['bio_age_vs_true_mae']:.4f} | {row['bio_age_vs_true_corr']:.4f} | {row['bio_age_std']:.4f} |"
         )
     lines.append("")
-    lines.append("## sanity check")
+    lines.append("## Supplemental / upper-bound axes")
+    lines.append("")
+    lines.append("| bio_age_axis | role | n_features | subject_gap_mae | subject_gain | subject_closer_to_bio_rate | bio_age_subject_mae |")
+    lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: |")
+    for _, row in supplemental_rows.iterrows():
+        role = REFERENCE_AXIS_DESCRIPTIONS.get(row["feature_set"], "Supplemental reference axis.")
+        lines.append(
+            f"| {row['feature_set']} | {role} | {int(row['n_features'])} | {row['subject_gap_mae']:.4f} | "
+            f"{row['subject_gain']:.4f} | {row['subject_closer_to_bio_rate']:.4f} | {row['bio_age_subject_mae']:.4f} |"
+        )
+    lines.append("")
+    lines.append("## Sanity checks / 中文说明")
     lines.append(f"- pred_age vs true_age MAE: sample={pred_true_sample_mae:.4f}, subject={pred_true_subject_mae:.4f}")
-    lines.append(
-        f"- 最优方案 state_age vs true_age MAE: sample={best_row['state_age_sample_mae']:.4f}, subject={best_row['state_age_subject_mae']:.4f}"
-    )
-    lines.append(f"- 最优方案 state_age_vs_true_corr={best_row['state_age_vs_true_corr']:.4f}")
-    lines.append(f"- 最优方案 state_age_std={best_row['state_age_std']:.4f}")
-    lines.append(f"- 最优方案 state_age 范围=[{best_row['state_age_min']:.4f}, {best_row['state_age_max']:.4f}]")
-    if degeneration_flags:
-        lines.append(f"- 退化告警: {'; '.join(degeneration_flags)}")
-    else:
-        lines.append("- 未发现明显退化迹象。")
+    lines.append("- `bio_age_vs_true_mae` / `bio_age_vs_true_corr` 只用于检查参考轴是否合理，不作为唯一主结论。")
+    lines.append("- `texture_metadata` 和 full feature set 只作为 practical upper bound，不应作为唯一科学定义。")
 
     if skipped:
         lines.append("")
@@ -715,17 +823,21 @@ def write_summary(
 
     lines.append("")
     lines.append("## 输出清单")
-    lines.append("- leaderboard.csv")
+    lines.append("- bio_age_reference_leaderboard.csv")
+    lines.append("- bio_age_reference_summary.md")
+    lines.append("- bio_age_reference_subject_diagnostics.csv")
+    lines.append("- bio_age_reference_subject_error_matrix.csv")
     lines.append("- feature_sets/<feature_set>/results.csv")
     lines.append("- figures/*.png")
     lines.append("- inputs_used.json")
 
+    (run_dir / "bio_age_reference_summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     (run_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Benchmark feature sets for state_age fitting under a unified subject-level CV protocol."
+        description="Benchmark feature sets for bio_age fitting under a unified subject-level CV protocol."
     )
     parser.add_argument(
         "--pred-file",
@@ -739,7 +851,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--output-root",
-        default="outputs/state_age_feature_benchmark",
+        default="results/bio_age_feature_benchmark",
         help="Root directory for benchmark outputs.",
     )
     parser.add_argument("--run-name", default=None, help="Optional run name.")
@@ -748,15 +860,20 @@ def main() -> None:
     parser.add_argument("--n-splits", type=int, default=5)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
+        "--skip-extra-image-features",
+        action="store_true",
+        help="Skip per-image extra feature extraction from image/mask files. Useful for faster smoke runs.",
+    )
+    parser.add_argument(
         "--elasticnet-sets",
-        default="A1_ei_only_baseline,A2_roi_first_order,B4_texture_only,B5_first_order_plus_texture,C5_first_order_texture_morphology,D4_roi_plus_partition,E4_full_plus_metadata",
+        default="bio_age_ei,bio_age_texture,bio_age_ei_texture,bio_age_morphology,bio_age_texture_metadata,bio_age_full_image_upper_bound",
         help="Comma-separated feature_set names for ElasticNet robustness runs.",
     )
     args = parser.parse_args()
 
     set_seed(args.seed)
 
-    run_name = args.run_name or f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_state_age_feature_benchmark"
+    run_name = args.run_name or f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_bio_age_feature_benchmark"
     run_dir = (PROJECT_ROOT / args.output_root / run_name).resolve()
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "feature_sets").mkdir(exist_ok=True)
@@ -819,8 +936,12 @@ def main() -> None:
         raise ValueError(f"Too few usable rows after filtering: {len(merged)}")
 
     # Compute optional image+mask extra features
-    extra_cache = run_dir / "tables" / "extra_features.csv"
-    extra_features, extra_notes = build_or_load_extra_features(merged, extra_cache)
+    if args.skip_extra_image_features:
+        extra_features = merged[["sample_id"]].drop_duplicates().copy()
+        extra_notes = ["Skipped per-image extra feature extraction via --skip-extra-image-features."]
+    else:
+        extra_cache = run_dir / "tables" / "extra_features.csv"
+        extra_features, extra_notes = build_or_load_extra_features(merged, extra_cache)
     merged = merged.merge(extra_features, on="sample_id", how="left")
 
     feature_sets, feature_notes = build_feature_sets(merged)
@@ -833,6 +954,7 @@ def main() -> None:
     pred_true_subject_mae = float(mean_absolute_error(subject_base["pred_age"], subject_base["true_age"]))
 
     leaderboard_rows: list[dict[str, Any]] = []
+    subject_diagnostics_rows: list[pd.DataFrame] = []
     skipped: list[str] = []
 
     elasticnet_set_names = {x.strip() for x in args.elasticnet_sets.split(",") if x.strip()}
@@ -854,14 +976,14 @@ def main() -> None:
                 continue
 
             try:
-                state_age = run_cv_predict(
+                bio_age = run_cv_predict(
                     df=merged,
                     feature_cols=cols,
                     folds=folds,
                     model_name=model_name,
                     seed=args.seed,
                 )
-                result_df, metrics = evaluate_predictions(merged, state_age)
+                result_df, subject_df, metrics = evaluate_predictions(merged, bio_age)
                 fs_dir = run_dir / "feature_sets" / feature_set_name
                 fs_dir.mkdir(exist_ok=True)
                 if model_name == "ridge":
@@ -872,30 +994,56 @@ def main() -> None:
                     subject_path = fs_dir / f"subject_results_{model_name}.csv"
 
                 result_df.to_csv(result_path, index=False)
-                result_df.groupby("subject_id", as_index=False)[
-                    ["true_age", "pred_age", "state_age", "gap_pred_true", "gap_pred_state"]
-                ].mean().to_csv(subject_path, index=False)
+                subject_df.to_csv(subject_path, index=False)
+                subject_diag = subject_df.copy()
+                subject_diag.insert(0, "model", model_name)
+                subject_diag.insert(0, "feature_set", feature_set_name)
+                subject_diag["subject_gain"] = subject_diag["abs_pred_true"] - subject_diag["abs_pred_bio"]
+                subject_diag["subject_closer_to_bio"] = subject_diag["abs_pred_bio"] < subject_diag["abs_pred_true"]
+                subject_diag["subject_within_2"] = subject_diag["abs_pred_bio"] <= 2.0
+                subject_diag["subject_within_5"] = subject_diag["abs_pred_bio"] <= 5.0
+                subject_diag["subject_within_8"] = subject_diag["abs_pred_bio"] <= 8.0
+                subject_diag = subject_diag.rename(
+                    columns={
+                        "abs_pred_true": "subject_abs_pred_true",
+                        "abs_pred_bio": "subject_abs_pred_bio",
+                    }
+                )
+                subject_diagnostics_rows.append(subject_diag)
 
                 leaderboard_rows.append(
                     {
                         "feature_set": feature_set_name,
                         "model": model_name,
                         "n_features": int(len(cols)),
-                        "ml_sample_mae": metrics["ml_sample_mae"],
-                        "ml_subject_mae": metrics["ml_subject_mae"],
-                        "state_age_sample_mae": metrics["state_age_sample_mae"],
-                        "state_age_subject_mae": metrics["state_age_subject_mae"],
-                        "gain_sample": float(metrics["ml_sample_mae"] - metrics["sample_gap_mae"]),
-                        "gain": float(metrics["ml_subject_mae"] - metrics["subject_gap_mae"]),
+                        "sample_ml_true_mae": metrics["sample_ml_true_mae"],
+                        "subject_ml_true_mae": metrics["subject_ml_true_mae"],
+                        "ml_sample_mae": metrics["sample_ml_true_mae"],
+                        "ml_subject_mae": metrics["subject_ml_true_mae"],
+                        "bio_age_sample_mae": metrics["bio_age_sample_mae"],
+                        "bio_age_subject_mae": metrics["bio_age_subject_mae"],
+                        "sample_gain": metrics["sample_gain"],
+                        "subject_gain": metrics["subject_gain"],
+                        "gain_sample": metrics["sample_gain"],
+                        "gain": metrics["subject_gain"],
+                        "sample_closer_to_bio_rate": metrics["sample_closer_to_bio_rate"],
+                        "subject_closer_to_bio_rate": metrics["subject_closer_to_bio_rate"],
+                        "sample_within_2_rate": metrics["sample_within_2_rate"],
+                        "sample_within_5_rate": metrics["sample_within_5_rate"],
+                        "sample_within_8_rate": metrics["sample_within_8_rate"],
+                        "subject_within_2_rate": metrics["subject_within_2_rate"],
+                        "subject_within_5_rate": metrics["subject_within_5_rate"],
+                        "subject_within_8_rate": metrics["subject_within_8_rate"],
                         "sample_gap_mae": metrics["sample_gap_mae"],
                         "subject_gap_mae": metrics["subject_gap_mae"],
                         "sample_gap_rmse": metrics["sample_gap_rmse"],
                         "subject_gap_rmse": metrics["subject_gap_rmse"],
-                        "state_age_vs_true_mae": metrics["state_age_vs_true_mae"],
-                        "state_age_vs_true_corr": metrics["state_age_vs_true_corr"],
-                        "state_age_std": metrics["state_age_std"],
-                        "state_age_min": metrics["state_age_min"],
-                        "state_age_max": metrics["state_age_max"],
+                        "bio_age_vs_true_mae": metrics["bio_age_vs_true_mae"],
+                        "bio_age_vs_true_corr": metrics["bio_age_vs_true_corr"],
+                        "bio_age_bias_slope": metrics["bio_age_bias_slope"],
+                        "bio_age_std": metrics["bio_age_std"],
+                        "bio_age_min": metrics["bio_age_min"],
+                        "bio_age_max": metrics["bio_age_max"],
                         "status": "ok",
                         "note": "",
                     }
@@ -909,22 +1057,38 @@ def main() -> None:
     leaderboard = pd.DataFrame(leaderboard_rows)
 
     leaderboard = leaderboard.sort_values(["model", "subject_gap_mae", "sample_gap_mae"]).reset_index(drop=True)
+    leaderboard.to_csv(run_dir / "bio_age_reference_leaderboard.csv", index=False)
     leaderboard.to_csv(run_dir / "leaderboard.csv", index=False)
+
+    subject_diagnostics = pd.concat(subject_diagnostics_rows, ignore_index=True) if subject_diagnostics_rows else pd.DataFrame()
+    if not subject_diagnostics.empty:
+        subject_diagnostics.to_csv(run_dir / "bio_age_reference_subject_diagnostics.csv", index=False)
+        main_subject_matrix = (
+            subject_diagnostics[subject_diagnostics["model"] == "ridge"]
+            .pivot_table(
+                index="subject_id",
+                columns="feature_set",
+                values="subject_abs_pred_bio",
+                aggfunc="mean",
+            )
+            .reset_index()
+        )
+        if not main_subject_matrix.empty:
+            main_subject_matrix.to_csv(run_dir / "bio_age_reference_subject_error_matrix.csv", index=False)
 
     ridge_board = leaderboard[leaderboard["model"] == "ridge"].sort_values("subject_gap_mae").reset_index(drop=True)
     if ridge_board.empty:
         raise RuntimeError("Ridge results are empty. Cannot build main summary.")
 
-    baseline_row = ridge_board[ridge_board["feature_set"] == "A1_ei_only_baseline"]
-    if baseline_row.empty:
-        raise RuntimeError("Ridge baseline A1_ei_only_baseline is missing.")
-    baseline_row = baseline_row.iloc[0]
-    best_row = ridge_board.iloc[0]
+    reference_rows = ridge_board[ridge_board["feature_set"].isin(MAIN_REFERENCE_AXES)].copy()
+    if set(MAIN_REFERENCE_AXES) - set(reference_rows["feature_set"]):
+        missing_axes = sorted(set(MAIN_REFERENCE_AXES) - set(reference_rows["feature_set"]))
+        raise RuntimeError(f"Missing main bio_age reference axes: {missing_axes}")
 
     # Figures
-    best_set = best_row["feature_set"]
+    best_set = "bio_age_ei_texture"
     best_results = pd.read_csv(run_dir / "feature_sets" / best_set / "results.csv")
-    baseline_results = pd.read_csv(run_dir / "feature_sets" / "A1_ei_only_baseline" / "results.csv")
+    baseline_results = pd.read_csv(run_dir / "feature_sets" / "bio_age_ei" / "results.csv")
 
     save_scatter(
         x=baseline_results["true_age"].to_numpy(),
@@ -934,35 +1098,58 @@ def main() -> None:
         xlabel="true_age",
         ylabel="pred_age",
     )
-    save_scatter(
-        x=best_results["state_age"].to_numpy(),
-        y=best_results["pred_age"].to_numpy(),
-        path=run_dir / "figures" / "pred_age_vs_state_age_best.png",
-        title=f"pred_age vs state_age ({best_set})",
-        xlabel="state_age",
-        ylabel="pred_age",
-    )
-    save_scatter(
-        x=best_results["true_age"].to_numpy(),
-        y=best_results["state_age"].to_numpy(),
-        path=run_dir / "figures" / "state_age_vs_true_age_best.png",
-        title=f"state_age vs true_age ({best_set})",
-        xlabel="true_age",
-        ylabel="state_age",
-    )
+    for axis in MAIN_REFERENCE_AXES:
+        axis_results = pd.read_csv(run_dir / "feature_sets" / axis / "results.csv")
+        save_scatter(
+            x=axis_results["bio_age"].to_numpy(),
+            y=axis_results["pred_age"].to_numpy(),
+            path=run_dir / "figures" / f"pred_age_vs_{axis}.png",
+            title=f"pred_age vs {axis}",
+            xlabel=axis,
+            ylabel="pred_age",
+        )
+        save_scatter(
+            x=axis_results["true_age"].to_numpy(),
+            y=axis_results["bio_age"].to_numpy(),
+            path=run_dir / "figures" / f"{axis}_vs_true_age.png",
+            title=f"{axis} vs true_age",
+            xlabel="true_age",
+            ylabel=axis,
+        )
 
     bar_df = ridge_board[["feature_set", "subject_gap_mae"]].copy()
     save_bar(bar_df, run_dir / "figures" / "subject_gap_mae_by_feature_set.png", "subject-level gap_mae by feature set (Ridge)")
+    ridge_main = ridge_board[ridge_board["feature_set"].isin(MAIN_REFERENCE_AXES)].copy()
+    save_metric_bar(
+        ridge_main,
+        "subject_gain",
+        run_dir / "figures" / "subject_gain_by_bio_axis.png",
+        "Subject gain by main bio_age axis",
+        "subject_gain",
+    )
+    save_metric_bar(
+        ridge_main,
+        "subject_closer_to_bio_rate",
+        run_dir / "figures" / "subject_closer_to_bio_rate_by_axis.png",
+        "Subject closer-to-bio rate by main bio_age axis",
+        "subject_closer_to_bio_rate",
+    )
+    save_within_rate_plot(ridge_main, run_dir / "figures" / "within_2_5_8_coverage_by_axis.png")
+    if not subject_diagnostics.empty:
+        save_worst_subjects_plot(
+            subject_diagnostics[subject_diagnostics["model"] == "ridge"].copy(),
+            run_dir,
+        )
 
     plt.figure(figsize=(7, 5.5))
-    residual = best_results["state_age"].to_numpy() - best_results["true_age"].to_numpy()
+    residual = best_results["bio_age"].to_numpy() - best_results["true_age"].to_numpy()
     plt.scatter(best_results["true_age"], residual, s=10, alpha=0.55)
     plt.axhline(0, color="black", linestyle="--", linewidth=1)
     plt.xlabel("true_age")
-    plt.ylabel("state_age - true_age")
+    plt.ylabel("bio_age - true_age")
     plt.title(f"Residual vs Age ({best_set})")
     plt.tight_layout()
-    plt.savefig(run_dir / "figures" / "best_state_age_residual_vs_age.png", dpi=180)
+    plt.savefig(run_dir / "figures" / "best_bio_age_residual_vs_age.png", dpi=180)
     plt.close()
 
     inputs_used = {
@@ -975,14 +1162,14 @@ def main() -> None:
         "pred_true_sample_mae": pred_true_sample_mae,
         "pred_true_subject_mae": pred_true_subject_mae,
         "lbp_available": HAS_LBP,
+        "skip_extra_image_features": bool(args.skip_extra_image_features),
     }
     (run_dir / "inputs_used.json").write_text(json.dumps(inputs_used, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     write_summary(
         run_dir=run_dir,
         leaderboard=leaderboard,
-        baseline_row=baseline_row,
-        best_row=best_row,
+        reference_rows=reference_rows,
         skipped=skipped,
         feature_notes=feature_notes,
         extra_notes=extra_notes,
@@ -991,19 +1178,20 @@ def main() -> None:
         pred_true_subject_mae=pred_true_subject_mae,
     )
 
-    print("=== state_age feature benchmark complete ===")
+    print("=== bio_age feature benchmark complete ===")
     print(f"run_dir: {run_dir}")
-    print("Top-5 Ridge by pred_age vs state_age subject_gap_mae:")
+    print("Top-5 Ridge by pred_age vs bio_age subject_gap_mae:")
     show_cols = [
         "feature_set",
         "n_features",
-        "ml_subject_mae",
+        "subject_ml_true_mae",
         "sample_gap_mae",
         "subject_gap_mae",
-        "gain",
-        "state_age_subject_mae",
-        "state_age_vs_true_corr",
-        "state_age_std",
+        "subject_gain",
+        "subject_closer_to_bio_rate",
+        "bio_age_subject_mae",
+        "bio_age_vs_true_corr",
+        "bio_age_std",
     ]
     print(ridge_board[show_cols].head(5).to_string(index=False))
 

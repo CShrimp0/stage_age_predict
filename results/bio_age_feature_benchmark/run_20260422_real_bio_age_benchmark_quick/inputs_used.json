@@ -1,0 +1,12 @@
+{
+  "pred": "/home/szdx/LNX/usage_predict_feature_engineering/outputs/run_20260411_003506_ta_healthy_nested_cv_fusion_whole_roi_masked_cached_ridge/predictions_readable.csv",
+  "feature_table": "/home/szdx/LNX/usage_predict_feature_engineering/outputs/cache_feature_tables/ta_healthy_whole_plus_roi_original_size.csv",
+  "images": "/home/szdx/LNX/data/TA/Healthy/Images",
+  "masks": "/home/szdx/LNX/data/TA/Healthy/Masks",
+  "n_rows_after_merge_age_filter": 2638,
+  "n_subjects": 873,
+  "pred_true_sample_mae": 9.443094010614102,
+  "pred_true_subject_mae": 9.268909125620466,
+  "lbp_available": true,
+  "skip_extra_image_features": true
+}

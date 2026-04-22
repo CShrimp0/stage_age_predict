@@ -1,110 +1,200 @@
-# Status Age Prediction
+# Bio Age Reference Axes for Ultrasound Age Models
 
-This repository contains the standalone status-age analysis code split out from
-`usage_predict_feature_engineering`.
+This repository builds interpretable ultrasound-derived `bio_age` reference
+axes and tests whether ML-predicted age (`pred_age`) is closer to those
+reference axes than to chronological label age (`true_age`).
 
-The goal is not to find the best chronological-age predictor. The goal is to
-define interpretable feature-derived `state_age`, then test whether ML-predicted
-age is closer to that state age than to chronological `true_age`.
+The goal is not to find a single globally best chronological-age predictor.
+The goal is to create several explainable biological/status-age proxies and
+use them to understand what image signal the ML model learned.
 
-## Contents
+## Core Terminology
 
-- `ei_state_age_agegap/`
-  - Direct EI-to-state-age mapping and `pred_age - state_age` gap MAE.
-- `state_age_feature_benchmark/run_state_age_feature_benchmark.py`
-  - Fits multiple interpretable feature sets to `state_age` under subject-level
-    CV and evaluates `pred_age` vs `state_age`.
-- `state_age_feature_benchmark/compare_ml_runs_to_state_age.py`
-  - Compares many ML prediction runs against the same set of fitted state-age
-    outputs.
-- `dataio/` and `preprocessing/`
-  - Minimal copied helper code needed by the benchmark script.
-- `results/`
-  - Small summary outputs from the latest local runs. Raw images, full feature
-    tables, and per-sample prediction files are not included.
+- `true_age`: chronological / label age.
+- `pred_age`: machine-learning predicted age.
+- `bio_age`: interpretable image-derived biological/status age proxy.
 
-## Core Metrics
+Backward compatibility: some loaders still accept old input columns such as
+`age` or `state_age`, but outputs are normalized to `true_age`, `pred_age`, and
+`bio_age`.
 
-For each ML run and state-age feature set:
+## Main Bio Age Reference Axes
+
+The benchmark formally keeps three primary axes:
+
+- `bio_age_ei`
+  - EI / first-order axis.
+  - Represents overall echogenicity, brightness, and coarse muscle-quality
+    signal.
+  - Uses ROI first-order statistics such as mean, median, std, iqr, percentiles,
+    skewness, and kurtosis.
+
+- `bio_age_texture`
+  - Texture-only axis.
+  - Represents tissue heterogeneity and local texture-pattern signal.
+  - Uses lightweight interpretable texture descriptors such as GLCM and LBP
+    features when available.
+
+- `bio_age_ei_texture`
+  - Pure-image combined axis.
+  - Represents the recommended image-only status-age proxy combining EI /
+    first-order features and texture features.
+
+Supplemental axes such as `bio_age_morphology`, `bio_age_texture_metadata`, and
+`bio_age_full_image_upper_bound` are retained for interpretation and practical
+upper-bound checks. `texture_metadata` and full feature sets should not be used
+as the sole scientific definition of `bio_age`.
+
+## Why Not Rank Only by Best MAE?
+
+Lowest global MAE can be misleading. It does not prove that every subject or
+sample is close to a bio-age axis, and it may reward complex feature sets with
+weaker interpretability.
+
+The central questions are:
+
+1. Is `pred_age` closer to `bio_age_ei`, `bio_age_texture`, or
+   `bio_age_ei_texture`?
+2. Does that closeness hold for most subjects/samples, or only because a few
+   large errors dominate the mean?
+3. If `pred_age` aligns with `bio_age_ei`, the ML model may rely more on
+   global echogenicity. If it aligns with `bio_age_texture`, it may rely more
+   on tissue heterogeneity. If it aligns with `bio_age_ei_texture`, it may
+   capture a combined pure-image status-age signal.
+
+## Metrics
+
+For each ML run and `bio_age` reference axis:
 
 ```text
-ml_subject_mae = MAE(pred_age, true_age)
-subject_gap_mae = MAE(pred_age, state_age)
-subject_gain = ml_subject_mae - subject_gap_mae
-subject_closer_to_state_rate =
-    fraction of subjects where |pred_age - state_age| < |pred_age - true_age|
+sample_ml_true_mae = MAE(pred_age, true_age)
+subject_ml_true_mae = MAE(pred_age, true_age)
+sample_gap_mae = MAE(pred_age, bio_age)
+subject_gap_mae = MAE(pred_age, bio_age)
+sample_gain = sample_ml_true_mae - sample_gap_mae
+subject_gain = subject_ml_true_mae - subject_gap_mae
 ```
 
-Interpretation:
+Coverage metrics:
 
-- `subject_gain > 0` means the ML prediction is closer to interpretable
-  `state_age` than chronological age on average.
-- `subject_closer_to_state_rate` checks whether this is true for many subjects,
-  not only due to a few large errors.
-- `state_age_subject_mae` and `state_age_vs_true_corr` are sanity checks for
-  whether the fitted state age is reasonable; they are not the main ranking
-  target.
+```text
+sample_closer_to_bio_rate =
+  fraction of samples where |pred_age - bio_age| < |pred_age - true_age|
 
-## Run A State-Age Feature Benchmark
+subject_closer_to_bio_rate =
+  fraction of subjects where |pred_age - bio_age| < |pred_age - true_age|
 
-Provide the prediction file and feature table explicitly. Example for the local
-LNX workspace:
+sample_within_2/5/8_rate =
+  fraction of samples where |pred_age - bio_age| <= 2/5/8
+
+subject_within_2/5/8_rate =
+  fraction of subjects where |pred_age - bio_age| <= 2/5/8
+```
+
+Bio-age sanity checks:
+
+```text
+bio_age_vs_true_mae
+bio_age_vs_true_corr
+bio_age_std
+bio_age_min
+bio_age_max
+bio_age_bias_slope
+```
+
+These sanity checks assess whether the proxy is reasonable. They are not the
+sole ranking target.
+
+## Repository Layout
+
+- `ei_state_age_agegap/`
+  - EI-only `bio_age` baseline tool.
+- `state_age_feature_benchmark/run_state_age_feature_benchmark.py`
+  - Fits multiple interpretable `bio_age` reference axes under subject-level CV.
+  - The directory name is kept for backward compatibility with earlier local
+    runs; current outputs use `bio_age` terminology.
+- `state_age_feature_benchmark/compare_ml_runs_to_bio_age.py`
+  - Compares many ML prediction runs against fitted `bio_age` axes.
+- `state_age_feature_benchmark/compare_ml_runs_to_state_age.py`
+  - Backward-compatible wrapper around `compare_ml_runs_to_bio_age.py`.
+- `results/`
+  - Summary-level example outputs. Raw images, full feature tables, and
+    per-sample private prediction files are not included.
+
+## Run Bio Age Reference-Axis Benchmark
+
+Provide a prediction file and feature table explicitly:
 
 ```bash
 python state_age_feature_benchmark/run_state_age_feature_benchmark.py \
   --pred-file /home/szdx/LNX/usage_predict_feature_engineering/outputs/run_20260411_003506_ta_healthy_nested_cv_fusion_whole_roi_masked_cached_ridge/predictions_readable.csv \
   --feature-table /home/szdx/LNX/usage_predict_feature_engineering/outputs/cache_feature_tables/ta_healthy_whole_plus_roi_original_size.csv \
-  --output-root outputs/state_age_feature_benchmark
+  --output-root results/bio_age_feature_benchmark
 ```
 
-The script also reads image/mask paths from the feature table when deriving
-extra interpretable features. If those paths are not available, feature sets
-that depend on them may be skipped or partially missing.
-
-## Compare Many ML Runs Against State Age
-
-After running the benchmark above:
+For a faster smoke run that skips per-image extra feature extraction and still
+keeps the main `bio_age_ei / bio_age_texture / bio_age_ei_texture` axes:
 
 ```bash
-python state_age_feature_benchmark/compare_ml_runs_to_state_age.py \
-  --state-age-run outputs/state_age_feature_benchmark/<run_name> \
-  --pred-root /home/szdx/LNX/usage_predict_feature_engineering/outputs \
-  --output-dir outputs/state_age_model_comparison/<comparison_name>
+python state_age_feature_benchmark/run_state_age_feature_benchmark.py \
+  --pred-file /home/szdx/LNX/usage_predict_feature_engineering/outputs/run_20260411_003506_ta_healthy_nested_cv_fusion_whole_roi_masked_cached_ridge/predictions_readable.csv \
+  --feature-table /home/szdx/LNX/usage_predict_feature_engineering/outputs/cache_feature_tables/ta_healthy_whole_plus_roi_original_size.csv \
+  --output-root results/bio_age_feature_benchmark \
+  --run-name run_quick \
+  --skip-extra-image-features
 ```
 
-This produces `ml_vs_state_age_leaderboard.csv` and `summary.md`.
+Primary outputs:
 
-## EI-Only State Age Gap
+```text
+results/bio_age_feature_benchmark/<run_name>/
+  bio_age_reference_leaderboard.csv
+  bio_age_reference_summary.md
+  feature_sets/
+    bio_age_ei/
+    bio_age_texture/
+    bio_age_ei_texture/
+    ...
+  figures/
+```
 
-If a table already contains `EI` and predicted age:
+## Compare ML Runs to Bio Age Axes
+
+```bash
+python state_age_feature_benchmark/compare_ml_runs_to_bio_age.py \
+  --bio-age-run results/bio_age_feature_benchmark/<run_name> \
+  --pred-root /home/szdx/LNX/usage_predict_feature_engineering/outputs \
+  --output-dir results/ml_vs_bio_age/<comparison_name>
+```
+
+Primary outputs:
+
+```text
+results/ml_vs_bio_age/<comparison_name>/
+  ml_vs_bio_age_leaderboard.csv
+  ml_vs_bio_age_subject_diagnostics.csv
+  summary.md
+  figures/
+```
+
+The subject diagnostics file supports worst-subject analysis and comparison of
+the same subject across multiple `bio_age` axes.
+
+## EI-Only Bio Age Baseline
 
 ```bash
 python ei_state_age_agegap/compute_agegap.py \
   --input path/to/predictions_with_ei.csv \
   --ei-column EI \
-  --output-dir outputs/ei_state_age_agegap
-```
-
-If EI is in a separate table:
-
-```bash
-python ei_state_age_agegap/compute_agegap.py \
-  --input path/to/predictions.csv \
-  --ei-source path/to/ei_table.xlsx \
-  --ei-sheet 左连接 \
-  --ei-column "股直肌亮度（静息）" \
-  --merge-key subject_id:ID \
-  --output-dir outputs/ei_state_age_agegap
+  --output-dir results/ei_bio_age_agegap
 ```
 
 ## Validation
-
-The current code was syntax-checked with:
 
 ```bash
 python -m py_compile \
   ei_state_age_agegap/compute_agegap.py \
   state_age_feature_benchmark/run_state_age_feature_benchmark.py \
+  state_age_feature_benchmark/compare_ml_runs_to_bio_age.py \
   state_age_feature_benchmark/compare_ml_runs_to_state_age.py
 ```
-
