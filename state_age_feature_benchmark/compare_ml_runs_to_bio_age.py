@@ -14,6 +14,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import pearsonr
 
+plt.rcParams["font.sans-serif"] = ["Noto Sans CJK SC", "WenQuanYi Zen Hei", "DejaVu Sans"]
+plt.rcParams["axes.unicode_minus"] = False
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -192,8 +195,8 @@ def save_within_rate_plot(frame: pd.DataFrame, path: Path) -> None:
     for i, col in enumerate(cols):
         plt.bar(x + (i - 1) * width, plot_frame[col], width=width, label=col)
     plt.xticks(x, labels, rotation=45, ha="right")
-    plt.ylabel("coverage rate")
-    plt.title("Subject within 2/5/8 years of bio_age")
+    plt.ylabel("覆盖率")
+    plt.title("各主轴 subject 落在 bio_age 2/5/8 岁以内的比例")
     plt.legend()
     plt.tight_layout()
     plt.savefig(path, dpi=180)
@@ -224,7 +227,7 @@ def save_worst_subjects_plot(subject_diagnostics: pd.DataFrame, output_dir: Path
     plt.yticks(y + width * (len(available) - 1) / 2, labels)
     plt.gca().invert_yaxis()
     plt.xlabel("|pred_age - bio_age|")
-    plt.title("Worst subjects across main bio_age axes")
+    plt.title("主 bio_age 轴下误差最大的 subjects")
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_dir / "figures" / "worst_subjects_by_bio_axis.png", dpi=180)
@@ -240,16 +243,16 @@ def write_summary(output_dir: Path, leaderboard: pd.DataFrame, args: argparse.Na
     top_rate = main.sort_values(["subject_closer_to_bio_rate", "subject_gain"], ascending=[False, False]).head(10)
 
     lines = [
-        "# ML runs vs bio_age comparison",
+        "# ML 与 bio_age 对齐结果汇总",
         "",
-        "Purpose: test whether ML-predicted `pred_age` is closer to interpretable feature-derived `bio_age` reference axes than to `true_age`.",
+        "目的：检验 ML 预测的 `pred_age` 是否比 `true_age` 更接近可解释特征拟合得到的 `bio_age` 参考轴。",
         "",
         f"- bio_age_run: {args.bio_age_run}",
         f"- pred_root: {args.pred_root}",
-        f"- prediction runs compared: {leaderboard['ml_run'].nunique()}",
-        f"- bio_age feature sets compared: {leaderboard['feature_set'].nunique()}",
+        f"- 比较到的 prediction run 数: {leaderboard['ml_run'].nunique()}",
+        f"- 比较到的 bio_age 轴数: {leaderboard['feature_set'].nunique()}",
         "",
-        "## Main-axis top 10 by subject_gap_mae",
+        "## 主参考轴：按 subject_gap_mae 排序的 Top 10",
         "",
         "| rank | ml_run | bio_age_axis | n_features | subject_ml_true_mae | subject_gap_mae | subject_gain | subject_closer_to_bio_rate | subject_within_2_rate | subject_within_5_rate | subject_within_8_rate | bio_age_subject_mae |",
         "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -265,7 +268,7 @@ def write_summary(output_dir: Path, leaderboard: pd.DataFrame, args: argparse.Na
     lines.extend(
         [
             "",
-            "## Main-axis top 10 by subject_closer_to_bio_rate",
+            "## 主参考轴：按 subject_closer_to_bio_rate 排序的 Top 10",
             "",
             "| rank | ml_run | bio_age_axis | n_features | subject_ml_true_mae | subject_gap_mae | subject_gain | subject_closer_to_bio_rate | bio_age_subject_mae |",
             "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
@@ -281,11 +284,11 @@ def write_summary(output_dir: Path, leaderboard: pd.DataFrame, args: argparse.Na
     lines.extend(
         [
             "",
-            "Interpretation:",
+            "## 中文解释",
             "- `subject_gain = subject_ml_true_mae - subject_gap_mae`。",
-            "- subject_gain > 0 means ML pred_age is closer to bio_age than to true_age at subject level.",
-            "- subject_closer_to_bio_rate reports the fraction of subjects where this is true, not just the average.",
-            "- `bio_age_texture_metadata` and full feature sets are practical upper bounds, not the sole scientific definition.",
+            "- 当 `subject_gain > 0` 时，说明在 subject 层面 `pred_age` 比 `true_age` 更接近该 `bio_age` 轴。",
+            "- `subject_closer_to_bio_rate` 表示有多少 subject 满足这一点，而不是只看均值。",
+            "- `bio_age_texture_metadata` 和更复杂 full feature sets 只作为 practical upper bound，不作为唯一科学定义。",
         ]
     )
     (output_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -430,14 +433,14 @@ def main() -> None:
             ridge_main.head(12),
             "subject_gain",
             output_dir / "figures" / "subject_gain_by_bio_axis.png",
-            "Subject gain by main bio_age axis",
+            "主 bio_age 轴的 subject_gain",
             "subject_gain",
         )
         save_bar(
             ridge_main.head(12),
             "subject_closer_to_bio_rate",
             output_dir / "figures" / "subject_closer_to_bio_rate_by_axis.png",
-            "Subject closer-to-bio rate by main bio_age axis",
+            "主 bio_age 轴的 subject_closer_to_bio_rate",
             "subject_closer_to_bio_rate",
         )
         save_within_rate_plot(ridge_main, output_dir / "figures" / "within_2_5_8_coverage_by_axis.png")

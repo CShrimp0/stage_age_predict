@@ -31,6 +31,9 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+plt.rcParams["font.sans-serif"] = ["Noto Sans CJK SC", "WenQuanYi Zen Hei", "DejaVu Sans"]
+plt.rcParams["axes.unicode_minus"] = False
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -54,12 +57,12 @@ MAIN_REFERENCE_AXES = ["bio_age_ei", "bio_age_texture", "bio_age_ei_texture"]
 SUPPLEMENTAL_AXES = ["bio_age_morphology", "bio_age_texture_metadata", "bio_age_full_image_upper_bound"]
 
 REFERENCE_AXIS_DESCRIPTIONS = {
-    "bio_age_ei": "EI / first-order axis: overall echogenicity and coarse muscle-quality signal.",
-    "bio_age_texture": "Texture-only axis: tissue heterogeneity and local texture-pattern signal.",
-    "bio_age_ei_texture": "Pure-image combined axis: first-order echogenicity plus texture.",
-    "bio_age_morphology": "Supplemental morphology axis: ROI shape and spatial descriptors.",
-    "bio_age_texture_metadata": "Practical upper bound: texture plus simple metadata.",
-    "bio_age_full_image_upper_bound": "Practical upper bound: broad image, morphology, partition, and metadata features.",
+    "bio_age_ei": "EI / 一阶统计轴：整体回声强度、亮度与粗粒度肌肉质量信号。",
+    "bio_age_texture": "纹理轴：组织异质性与局部纹理模式信号。",
+    "bio_age_ei_texture": "纯图像综合轴：一阶统计 + 纹理信号。",
+    "bio_age_morphology": "补充形态轴：ROI 形状与空间分布描述。",
+    "bio_age_texture_metadata": "实践上限轴：纹理 + 简单元数据。",
+    "bio_age_full_image_upper_bound": "实践上限轴：更宽的图像、形态、分区和元数据组合。",
 }
 
 
@@ -699,8 +702,8 @@ def save_within_rate_plot(frame: pd.DataFrame, path: Path) -> None:
     for idx, col in enumerate(cols):
         plt.bar(x + (idx - 1) * width, plot_frame[col], width=width, label=col)
     plt.xticks(x, plot_frame["feature_set"], rotation=20, ha="right")
-    plt.ylabel("coverage rate")
-    plt.title("Subject within 2/5/8 years of bio_age")
+    plt.ylabel("覆盖率")
+    plt.title("各主轴 subject 落在 bio_age 2/5/8 岁以内的比例")
     plt.legend()
     plt.tight_layout()
     plt.savefig(path, dpi=180)
@@ -730,7 +733,7 @@ def save_worst_subjects_plot(subject_diagnostics: pd.DataFrame, output_dir: Path
     plt.yticks(y + width * (len(available) - 1) / 2, [str(idx) for idx in worst.index])
     plt.gca().invert_yaxis()
     plt.xlabel("|pred_age - bio_age|")
-    plt.title("Worst subjects across main bio_age axes")
+    plt.title("主 bio_age 轴下误差最大的 subjects")
     plt.legend()
     plt.tight_layout()
     plt.savefig(output_dir / "figures" / "worst_subjects_by_bio_axis.png", dpi=180)
@@ -759,7 +762,7 @@ def write_summary(
     supplemental_rows = ridge_board[ridge_board["feature_set"].isin(SUPPLEMENTAL_AXES)].copy()
 
     lines: list[str] = []
-    lines.append("# bio_age reference-axis benchmark summary")
+    lines.append("# bio_age 参考轴拟合结果汇总")
     lines.append("")
     lines.append("## 输入")
     lines.append(f"- pred_age 输入: {input_paths['pred']}")
@@ -776,7 +779,7 @@ def write_summary(
     for axis in MAIN_REFERENCE_AXES:
         lines.append(f"- `{axis}`: {REFERENCE_AXIS_DESCRIPTIONS[axis]}")
     lines.append("")
-    lines.append("## Main reference axes (Ridge)")
+    lines.append("## 主参考轴（Ridge）")
     lines.append("")
     lines.append("| bio_age_axis | n_features | sample_gap_mae | subject_gap_mae | sample_gain | subject_gain | sample_closer_to_bio_rate | subject_closer_to_bio_rate | bio_age_vs_true_mae | bio_age_vs_true_corr | bio_age_std |")
     lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
@@ -787,19 +790,19 @@ def write_summary(
             f"{row['subject_closer_to_bio_rate']:.4f} | {row['bio_age_vs_true_mae']:.4f} | {row['bio_age_vs_true_corr']:.4f} | {row['bio_age_std']:.4f} |"
         )
     lines.append("")
-    lines.append("## Supplemental / upper-bound axes")
+    lines.append("## 补充轴 / upper bound")
     lines.append("")
     lines.append("| bio_age_axis | role | n_features | subject_gap_mae | subject_gain | subject_closer_to_bio_rate | bio_age_subject_mae |")
     lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: |")
     for _, row in supplemental_rows.iterrows():
-        role = REFERENCE_AXIS_DESCRIPTIONS.get(row["feature_set"], "Supplemental reference axis.")
+        role = REFERENCE_AXIS_DESCRIPTIONS.get(row["feature_set"], "补充参考轴。")
         lines.append(
             f"| {row['feature_set']} | {role} | {int(row['n_features'])} | {row['subject_gap_mae']:.4f} | "
             f"{row['subject_gain']:.4f} | {row['subject_closer_to_bio_rate']:.4f} | {row['bio_age_subject_mae']:.4f} |"
         )
     lines.append("")
-    lines.append("## Sanity checks / 中文说明")
-    lines.append(f"- pred_age vs true_age MAE: sample={pred_true_sample_mae:.4f}, subject={pred_true_subject_mae:.4f}")
+    lines.append("## 合理性检查 / 中文说明")
+    lines.append(f"- pred_age 与 true_age 的 MAE: sample={pred_true_sample_mae:.4f}, subject={pred_true_subject_mae:.4f}")
     lines.append("- `bio_age_vs_true_mae` / `bio_age_vs_true_corr` 只用于检查参考轴是否合理，不作为唯一主结论。")
     lines.append("- `texture_metadata` 和 full feature set 只作为 practical upper bound，不应作为唯一科学定义。")
 
@@ -1094,7 +1097,7 @@ def main() -> None:
         x=baseline_results["true_age"].to_numpy(),
         y=baseline_results["pred_age"].to_numpy(),
         path=run_dir / "figures" / "pred_age_vs_true_age.png",
-        title="pred_age vs true_age",
+        title="pred_age 与 true_age",
         xlabel="true_age",
         ylabel="pred_age",
     )
@@ -1104,7 +1107,7 @@ def main() -> None:
             x=axis_results["bio_age"].to_numpy(),
             y=axis_results["pred_age"].to_numpy(),
             path=run_dir / "figures" / f"pred_age_vs_{axis}.png",
-            title=f"pred_age vs {axis}",
+            title=f"pred_age 与 {axis}",
             xlabel=axis,
             ylabel="pred_age",
         )
@@ -1112,26 +1115,26 @@ def main() -> None:
             x=axis_results["true_age"].to_numpy(),
             y=axis_results["bio_age"].to_numpy(),
             path=run_dir / "figures" / f"{axis}_vs_true_age.png",
-            title=f"{axis} vs true_age",
+            title=f"{axis} 与 true_age",
             xlabel="true_age",
             ylabel=axis,
         )
 
     bar_df = ridge_board[["feature_set", "subject_gap_mae"]].copy()
-    save_bar(bar_df, run_dir / "figures" / "subject_gap_mae_by_feature_set.png", "subject-level gap_mae by feature set (Ridge)")
+    save_bar(bar_df, run_dir / "figures" / "subject_gap_mae_by_feature_set.png", "各特征轴 subject-level gap_mae（Ridge）")
     ridge_main = ridge_board[ridge_board["feature_set"].isin(MAIN_REFERENCE_AXES)].copy()
     save_metric_bar(
         ridge_main,
         "subject_gain",
         run_dir / "figures" / "subject_gain_by_bio_axis.png",
-        "Subject gain by main bio_age axis",
+        "主 bio_age 轴的 subject_gain",
         "subject_gain",
     )
     save_metric_bar(
         ridge_main,
         "subject_closer_to_bio_rate",
         run_dir / "figures" / "subject_closer_to_bio_rate_by_axis.png",
-        "Subject closer-to-bio rate by main bio_age axis",
+        "主 bio_age 轴的 subject_closer_to_bio_rate",
         "subject_closer_to_bio_rate",
     )
     save_within_rate_plot(ridge_main, run_dir / "figures" / "within_2_5_8_coverage_by_axis.png")
@@ -1147,7 +1150,7 @@ def main() -> None:
     plt.axhline(0, color="black", linestyle="--", linewidth=1)
     plt.xlabel("true_age")
     plt.ylabel("bio_age - true_age")
-    plt.title(f"Residual vs Age ({best_set})")
+    plt.title(f"残差图：bio_age - true_age（{best_set}）")
     plt.tight_layout()
     plt.savefig(run_dir / "figures" / "best_bio_age_residual_vs_age.png", dpi=180)
     plt.close()
@@ -1178,9 +1181,9 @@ def main() -> None:
         pred_true_subject_mae=pred_true_subject_mae,
     )
 
-    print("=== bio_age feature benchmark complete ===")
+    print("=== bio_age 参考轴拟合完成 ===")
     print(f"run_dir: {run_dir}")
-    print("Top-5 Ridge by pred_age vs bio_age subject_gap_mae:")
+    print("按 pred_age 与 bio_age 的 subject_gap_mae 排序的 Top-5 Ridge 结果：")
     show_cols = [
         "feature_set",
         "n_features",

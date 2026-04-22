@@ -1,4 +1,4 @@
-# Bio Age Reference Axes for Ultrasound Age Models
+# 超声年龄模型的 Bio Age 参考轴分析
 
 This repository builds interpretable ultrasound-derived `bio_age` reference
 axes and tests whether ML-predicted age (`pred_age`) is closer to those
@@ -8,7 +8,7 @@ The goal is not to find a single globally best chronological-age predictor.
 The goal is to create several explainable biological/status-age proxies and
 use them to understand what image signal the ML model learned.
 
-## Core Terminology
+## 核心术语
 
 - `true_age`: chronological / label age.
 - `pred_age`: machine-learning predicted age.
@@ -18,7 +18,7 @@ Backward compatibility: some loaders still accept old input columns such as
 `age` or `state_age`, but outputs are normalized to `true_age`, `pred_age`, and
 `bio_age`.
 
-## Main Bio Age Reference Axes
+## 主 Bio Age 参考轴
 
 The benchmark formally keeps three primary axes:
 
@@ -45,7 +45,7 @@ Supplemental axes such as `bio_age_morphology`, `bio_age_texture_metadata`, and
 upper-bound checks. `texture_metadata` and full feature sets should not be used
 as the sole scientific definition of `bio_age`.
 
-## Why Not Rank Only by Best MAE?
+## 为什么不能只按最优 MAE 排名？
 
 Lowest global MAE can be misleading. It does not prove that every subject or
 sample is close to a bio-age axis, and it may reward complex feature sets with
@@ -62,7 +62,7 @@ The central questions are:
    on tissue heterogeneity. If it aligns with `bio_age_ei_texture`, it may
    capture a combined pure-image status-age signal.
 
-## Metrics
+## 指标体系
 
 For each ML run and `bio_age` reference axis:
 
@@ -105,7 +105,7 @@ bio_age_bias_slope
 These sanity checks assess whether the proxy is reasonable. They are not the
 sole ranking target.
 
-## Repository Layout
+## 仓库结构
 
 - `ei_state_age_agegap/`
   - EI-only `bio_age` baseline tool.
@@ -121,7 +121,7 @@ sole ranking target.
   - Summary-level example outputs. Raw images, full feature tables, and
     per-sample private prediction files are not included.
 
-## Run Bio Age Reference-Axis Benchmark
+## 运行 Bio Age 参考轴拟合
 
 Provide a prediction file and feature table explicitly:
 
@@ -158,7 +158,7 @@ results/bio_age_feature_benchmark/<run_name>/
   figures/
 ```
 
-## Compare ML Runs to Bio Age Axes
+## 比较 ML 与 Bio Age 参考轴
 
 ```bash
 python state_age_feature_benchmark/compare_ml_runs_to_bio_age.py \
@@ -180,7 +180,7 @@ results/ml_vs_bio_age/<comparison_name>/
 The subject diagnostics file supports worst-subject analysis and comparison of
 the same subject across multiple `bio_age` axes.
 
-## EI-Only Bio Age Baseline
+## EI-only Bio Age 基线
 
 ```bash
 python ei_state_age_agegap/compute_agegap.py \
@@ -189,7 +189,7 @@ python ei_state_age_agegap/compute_agegap.py \
   --output-dir results/ei_bio_age_agegap
 ```
 
-## Validation
+## 验证
 
 ```bash
 python -m py_compile \
